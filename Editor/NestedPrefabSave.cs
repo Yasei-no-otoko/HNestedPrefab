@@ -8,10 +8,7 @@ using UnityEngine.SceneManagement;
 
 namespace HojoSystem
 {
-	/// <summary>
-	/// シーンセーブされるときは正常に最上位ルートのみが保存されているが、ビルドされるとどうも全部保存されている感じがする
-	/// このままでは毎回DeleteChilrenを走らせなければならない　要調査
-	/// </summary>
+
 	public class NestedPrefabSave:AssetModificationProcessor
 	{
 		static string[] OnWillSaveAssets (string[] paths)
