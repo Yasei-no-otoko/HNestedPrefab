@@ -27,7 +27,12 @@ public class TestRootValueReceiver : MonoBehaviour,INestedPrefabRootSerializingC
 
 	public NestedPrefabRootSerializingContext GetExpectedDataAsContext ()
 	{
-		return new NestedPrefabRootSerializingContext (this.gameObject, testParameter1, testParameter2, testObjectField1, testObjectField2);
+		//nullの時も正常に型判定をするため、GetSerializationInformationはここで利用する必要がある
+		return new NestedPrefabRootSerializingContext (this.gameObject,
+			NestedPrefabContextInjectionHelper.GetSerializationInformation (testParameter1),
+			NestedPrefabContextInjectionHelper.GetSerializationInformation (testParameter2),
+			NestedPrefabContextInjectionHelper.GetSerializationInformation (testObjectField1),
+			NestedPrefabContextInjectionHelper.GetSerializationInformation (testObjectField2));
 	}
 
 	#endregion

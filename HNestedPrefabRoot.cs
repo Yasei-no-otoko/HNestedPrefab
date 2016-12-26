@@ -21,9 +21,12 @@ namespace HojoSystem
 	{
 
 		private bool isInitialized;
+		private List<PrefabInitializeData> allPrefabInitializeDataList = new List<PrefabInitializeData> ();
 
 		[SerializeField,Header ("Do not input manually. Only for seeing.")]
 		private List<PrefabInitializeData> prefabInitializeDataList = new List<PrefabInitializeData> ();
+		[SerializeField]
+		private List<PrefabInitializeDataForRectTransform> prefabInitializeDataForRectTransformList = new List<PrefabInitializeDataForRectTransform> ();
 
 		void OnEnable ()
 		{
@@ -58,40 +61,53 @@ namespace HojoSystem
 			#endif
 
 			List<INestedPrefabRootSerializingContextBridge[]> contextBridgeList = new List<INestedPrefabRootSerializingContextBridge[]> ();
+			allPrefabInitializeDataList.Clear ();
+			allPrefabInitializeDataList.AddRange (prefabInitializeDataList);
+			allPrefabInitializeDataList.AddRange (prefabInitializeDataForRectTransformList.Cast<PrefabInitializeData> ());
+			allPrefabInitializeDataList = allPrefabInitializeDataList.OrderBy (m => m.Index).ToList ();
 
-			prefabInitializeDataList.ForEach (m => {
-				#if UNITY_EDITOR
-				if (!EditorApplication.isPlayingOrWillChangePlaymode) {
-					var instance = (GameObject)PrefabUtility.InstantiatePrefab (m.assetPrefab);
-					instance.transform.SetParent (this.transform);
-					instance.transform.localPosition = m.localPosition;
-					instance.transform.localScale = m.LocalScale;
-					instance.transform.localRotation = Quaternion.Euler (m.EulerAngleRotation);
+			allPrefabInitializeDataList.ForEach (m => {
 
-					var contextListt = instance.GetComponents<INestedPrefabRootSerializingContextBridge> ();
-
-					contextBridgeList.Add (contextListt);
-					return;
-				}
-				#endif
-				var instancee = (GameObject)Instantiate (m.assetPrefab);
-
-				instancee.transform.SetParent (this.transform);
-				instancee.transform.localPosition = m.localPosition;
-				instancee.transform.localScale = m.LocalScale;
-				instancee.transform.localRotation = Quaternion.Euler (m.EulerAngleRotation);
-				var contextList = instancee.GetComponents<INestedPrefabRootSerializingContextBridge> ();
+				var instance = InstantiateChild (m);
+				var contextList = instance.GetComponents<INestedPrefabRootSerializingContextBridge> ();
 				contextBridgeList.Add (contextList);
 			});
 			isInitialized = true;
 
 			for (int j = 0; j < contextBridgeList.Count; j++) {
-				for (int i = 0; i < contextBridgeList [j].Length && i < prefabInitializeDataList [j].injectionContextList.Count; i++) {
-					GrabSceneObjectToContext (prefabInitializeDataList [j].injectionContextList [i]);
-					contextBridgeList [j] [i].Inject (prefabInitializeDataList [j].injectionContextList [i]);
+				for (int i = 0; i < contextBridgeList [j].Length && i < allPrefabInitializeDataList [j].injectionContextList.Count; i++) {
+					GrabSceneObjectToContext (allPrefabInitializeDataList [j].injectionContextList [i]);
+					contextBridgeList [j] [i].Inject (allPrefabInitializeDataList [j].injectionContextList [i]);
 				}
 			}
 
+		}
+
+		private GameObject InstantiateChild (PrefabInitializeData initializeData)
+		{
+			GameObject instance = null;
+			#if UNITY_EDITOR
+			if (!EditorApplication.isPlayingOrWillChangePlaymode) {
+				instance = (GameObject)PrefabUtility.InstantiatePrefab (initializeData.assetPrefab);
+			}
+			if (instance == null)
+			#endif
+				instance = (GameObject)Instantiate (initializeData.assetPrefab);
+			instance.transform.SetParent (this.transform);
+			instance.transform.localPosition = initializeData.localPosition;
+			instance.transform.localScale = initializeData.LocalScale;
+			instance.transform.localRotation = Quaternion.Euler (initializeData.EulerAngleRotation);
+			var initializeDataForRectTransform = initializeData as PrefabInitializeDataForRectTransform;
+			if (initializeDataForRectTransform != null) {
+				var rectTransform = instance.GetComponent<RectTransform> ();
+				rectTransform.anchorMax = initializeDataForRectTransform.AnchorMax;
+				rectTransform.anchorMin = initializeDataForRectTransform.AnchorMin;
+				rectTransform.offsetMax = initializeDataForRectTransform.OffsetMax;
+				rectTransform.offsetMin = initializeDataForRectTransform.OffsetMin;
+				rectTransform.pivot = initializeDataForRectTransform.Pivot;
+				rectTransform.sizeDelta = initializeDataForRectTransform.SizeDelta;
+			}
+			return instance;
 		}
 
 		/// <summary>
@@ -169,6 +185,7 @@ namespace HojoSystem
 		public void GenerateNestedPrefabData ()
 		{
 			prefabInitializeDataList.Clear ();
+			prefabInitializeDataForRectTransformList.Clear ();
 			HojoLogger.Log ("GenerateNestedPrefabData invoked " + gameObject.name);
 			var recognizedTransformList = gameObject.GetComponentsInChildren<Transform> ().Where (m => m.parent == this.transform).OrderByDescending (m => m.childCount).ToList ();
 			GameObject originalOfThisObject = null;
@@ -177,6 +194,7 @@ namespace HojoSystem
 			} catch {
 				return;
 			}
+			int index = 0;
 			recognizedTransformList.ForEach (m => {
 				GameObject original = null;
 				try {
@@ -191,17 +209,41 @@ namespace HojoSystem
 				}
 
 				var newInitializeData = new PrefabInitializeData ();
-				newInitializeData.assetPrefab = original;
-				newInitializeData.localPosition = m.localPosition;
-				newInitializeData.EulerAngleRotation = m.localRotation.eulerAngles;
-				newInitializeData.LocalScale = m.localScale;
 
-				var contextList = m.GetComponents<INestedPrefabRootSerializingContextBridge> ();
-				for (int i = 0; i < contextList.Length; i++) {
-					newInitializeData.injectionContextList.Add (contextList [i].GetExpectedDataAsContext ());
+
+
+
+				var rectTransform = m.gameObject.GetComponent<RectTransform> ();
+				if (rectTransform != null) {
+					var newInitializeDataForRect = new PrefabInitializeDataForRectTransform ();
+					newInitializeDataForRect.assetPrefab = original;
+					newInitializeDataForRect.localPosition = m.localPosition;
+					newInitializeDataForRect.EulerAngleRotation = m.localRotation.eulerAngles;
+					newInitializeDataForRect.LocalScale = m.localScale;
+					newInitializeDataForRect.AnchorMax = rectTransform.anchorMax;
+					newInitializeDataForRect.AnchorMin = rectTransform.anchorMin;
+					newInitializeDataForRect.OffsetMax = rectTransform.offsetMax;
+					newInitializeDataForRect.OffsetMin = rectTransform.offsetMin;
+					newInitializeDataForRect.Pivot = rectTransform.pivot;
+					newInitializeDataForRect.SizeDelta = rectTransform.sizeDelta;
+					newInitializeDataForRect.Index = index++;
+					var contextList = m.GetComponents<INestedPrefabRootSerializingContextBridge> ();
+					for (int i = 0; i < contextList.Length; i++) {
+						newInitializeDataForRect.injectionContextList.Add (contextList [i].GetExpectedDataAsContext ());
+					}
+					prefabInitializeDataForRectTransformList.Add (newInitializeDataForRect);
+				} else {
+					newInitializeData.assetPrefab = original;
+					newInitializeData.localPosition = m.localPosition;
+					newInitializeData.EulerAngleRotation = m.localRotation.eulerAngles;
+					newInitializeData.LocalScale = m.localScale;
+					newInitializeData.Index = index++;
+					var contextList = m.GetComponents<INestedPrefabRootSerializingContextBridge> ();
+					for (int i = 0; i < contextList.Length; i++) {
+						newInitializeData.injectionContextList.Add (contextList [i].GetExpectedDataAsContext ());
+					}
+					prefabInitializeDataList.Add (newInitializeData);
 				}
-
-				prefabInitializeDataList.Add (newInitializeData);
 
 
 			});
@@ -229,9 +271,20 @@ namespace HojoSystem
 	}
 
 	[System.Serializable]
+	public class PrefabInitializeDataForRectTransform:PrefabInitializeData
+	{
+		public Vector2 AnchorMax;
+		public Vector2 AnchorMin;
+		public Vector2 OffsetMax;
+		public Vector2 OffsetMin;
+		public Vector2 Pivot;
+		public Vector2 SizeDelta;
+	}
+
+	[System.Serializable]
 	public class PrefabInitializeData
 	{
-		
+		public int Index;
 		public Object assetPrefab;
 		public Vector3 localPosition;
 		public Vector3 EulerAngleRotation;

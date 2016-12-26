@@ -6,6 +6,7 @@ using System.Linq;
 using HojoSystem.Utility;
 using HojoSystem;
 using System;
+using System.Security.Cryptography.X509Certificates;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -16,6 +17,12 @@ namespace HojoSystem
 
 	public static class NestedPrefabContextInjectionHelper
 	{
+		public static SerializationInformation GetSerializationInformation <T> (T value)
+		{
+			//nullからtypeは取れないが、型にnullが入っているものをジェネリックメソッドが受け取ればtypeをとれる
+			return new SerializationInformation (value, typeof(T));
+		}
+
 		public static GameObject CastToGameObject (object target)
 		{
 			if (target is GameObject) {

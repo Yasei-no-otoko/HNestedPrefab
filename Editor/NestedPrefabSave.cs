@@ -8,7 +8,10 @@ using UnityEngine.SceneManagement;
 
 namespace HojoSystem
 {
-
+	/// <summary>
+	/// シーンセーブされるときは正常に最上位ルートのみが保存されているが、ビルドされるとどうも全部保存されている感じがする
+	/// このままでは毎回DeleteChilrenを走らせなければならない　要調査
+	/// </summary>
 	public class NestedPrefabSave:AssetModificationProcessor
 	{
 		static string[] OnWillSaveAssets (string[] paths)
@@ -28,7 +31,7 @@ namespace HojoSystem
 			//現状applyしたターゲットの認識をSelection.activeGameObjectでやってるが、俺はやらないがインスペクタ複数出して使う時とかどうなるかわかんない
 			//もっと適切な方法くれ
 			var targetObject = Selection.activeGameObject;
-			if (!isSceneSave && targetObject.GetComponent<HNestedPrefabRoot> () == null) {
+			if (!isSceneSave && (targetObject == (GameObject)null || targetObject.GetComponent<HNestedPrefabRoot> () == null)) {
 				//SceneSaveでなく、しかもHNestedPrefabRootでなかったら処理を切り上げる
 				return paths;
 			}
